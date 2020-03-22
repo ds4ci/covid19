@@ -1,0 +1,44 @@
+---
+title: "Try Wikipedia Scrape"
+author: "Jim Porzak"
+date: "`r Sys.Date()`"
+output: html_notebook
+---
+
+### Setup
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libs, message=FALSE}
+library(tidyverse, quietly = TRUE)
+library(readr)
+library(stringr)
+library(lubridate)
+library(DBI)
+library(dbplyr)
+library(RMariaDB)
+library(xtable)
+library(rvest)
+library(xml2)
+```
+
+#### Presets
+```{r preset}
+cv19_pt_pg <- "https://en.wikipedia.org/wiki/2020_coronavirus_pandemic_in_Portugal"
+cv19_pt_xpath <- '//*[@id="mw-content-text"]/div/table[4]'
+
+```
+
+## Get Daily Stats Table
+```{r daily}
+#cv19_pt <- html(cv19_pt_pg) <<<< Deprecated. Use:
+cv19_pt <- xml2::read_html(cv19_pt_pg)
+
+cv19_pt_tbl <- cv19_pt %>% 
+  html_nodes(xpath = cv19_pt_xpath) %>% 
+  html_table(fill = TRUE)
+cv19_pt_tbl <- cv19_pt_tbl[[1]]
+```
+
