@@ -1,0 +1,39 @@
+---
+title: "Francisco Portugal Covid19 EDA"
+author: "Jim Porzak"
+date: "`r Sys.Date()`"
+output: html_notebook
+---
+
+### Setup
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libs, message=FALSE}
+library(tidyverse, quietly = TRUE)
+library(readr)
+library(stringr)
+library(lubridate)
+library(DBI)
+library(dbplyr)
+library(RMariaDB)
+library(xtable)
+library(rvest)
+library(xml2)
+library(jsonlite)
+```
+
+```{r pull}
+dgs_cases_url <- "https://services.arcgis.com/CCZiGSEQbAxxFVh3/arcgis/rest/services/COVID19Portugal_view/FeatureServer/0/query?f=json&where=1=1&returnGeometry=false&spatialRel=esriSpatialRelIntersects&outFields=*&orderByFields=datarelatorio asc&resultOffset=0&resultRecordCount=1000"
+
+dgs_geo_url <- "https://services.arcgis.com/CCZiGSEQbAxxFVh3/arcgis/rest/services/COVID19Portugal_view/FeatureServer/1/query?f=json&where=1=1&returnGeometry=false&spatialRel=esriSpatialRelIntersects&outFields=*&orderByFields=dist_casosconf desc&resultOffset=0&resultRecordCount=1000"
+
+dgs_cases <- fromJSON(URLencode(dgs_cases_url))
+dgs_geo <- fromJSON(URLencode(dgs_geo_url))
+
+cases_dataset <- dgs_cases[["features"]][["attributes"]]
+geo_dataset <- dgs_geo[["features"]][["attributes"]]
+```
+

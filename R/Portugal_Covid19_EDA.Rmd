@@ -1,0 +1,193 @@
+---
+title: "Portugal Covid19 EDA"
+author: "Jim Porzak"
+date: "`r Sys.Date()`"
+output: html_notebook
+---
+
+### Setup
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libs, message=FALSE}
+library(tidyverse, quietly = TRUE)
+library(readr)
+library(stringr)
+library(lubridate)
+library(DBI)
+library(dbplyr)
+library(RMariaDB)
+library(xtable)
+library(rvest)
+library(xml2)
+```
+
+#### Presets
+```{r preset}
+cv19_pt_pg <- "https://en.wikipedia.org/wiki/2020_coronavirus_pandemic_in_Portugal"
+cv19_pt_xpath <- '//*[@id="mw-content-text"]/div/table[4]'
+min_cases_to_be_active <- 30
+na_date <- ymd("2000-01-31") + months(1)
+
+# % Increase = f(days2double)
+double_days <- c(1:7, 9, 14, 28, 90)
+PctInc4DD <- function(days){
+  100 * (10 ^ (log10(2)/days) - 1)
+}
+PI4DD <- tibble(days2double = double_days,
+                PctInc = PctInc4DD(double_days))
+
+```
+
+## Get Daily Stats Table
+Source: `r cv19_pt_pg`
+```{r daily}
+cv19_pt <- xml2::read_html(cv19_pt_pg)
+
+cv19_pt_tbl0 <- cv19_pt %>% 
+  html_nodes(xpath = cv19_pt_xpath) %>% 
+  html_table(fill = TRUE)
+cv19_pt_tbl0 <- cv19_pt_tbl0[[1]]
+cnames0 <- colnames(cv19_pt_tbl0)
+cnames <- cnames0
+cnames[1] <- "Date"
+cnames[3] <- "Lisbon_TV"
+cnames[10:17] <- c("Confirmed_New", "Confirmed_Tot", 
+                   "Hospital Admt stable", "Hospital Admt ICU",
+                   "Deaths_New", "Deaths_Total",
+                   "Recoveries_New", "Recoveries_Total")
+colnames(cv19_pt_tbl0) <- cnames
+
+## Fix 2020-03-16 Cases
+cv19_pt_tbl0[16, 10:12] <- c(86, 331, 1)
+## Fix Date 0024-03-20
+cv19_pt_tbl0[24, 1] <- ("2020-03-24")
+
+cv19_pt_tbl <- cv19_pt_tbl0 %>% 
+  select(-`Refs.`) %>% 
+  mutate(Date = as_date(Date, format = "%Y-%m-%d", tz = "GMT")) %>% 
+  filter(!is.na(Date)) %>% 
+  mutate_at(2:14, as.integer) %>% 
+  mutate(Confirmed_Pct_Inc = round(100 * Confirmed_New / coalesce(lag(Confirmed_Tot), 0L), 1))
+DataAsOf <- max(cv19_pt_tbl$Date)
+cv19_pt_tbl
+```
+
+## All of Portugal
+```{r PctInc, fig.width=6.7, fig.height=6}
+min_x <- min(cv19_pt_tbl$Date)
+cv19_pt_tbl %>% 
+  filter(is.finite(Confirmed_Pct_Inc)) %>% 
+  ggplot(aes(Date, Confirmed_Pct_Inc)) +
+    geom_hline(yintercept = PI4DD$PctInc, color = "red") +
+    annotate("text", x = min_x, y = PI4DD$PctInc, 
+             label = paste(PI4DD$days2double, "Days"), vjust = -0.31, color = "red", size = 2.8) +
+    annotate("text", x = min_x, y = Inf, label = "Total doubles every:", 
+             hjust = 0.2, vjust = 1, color = "red") +
+    geom_point() +
+    geom_smooth() +
+    ylim(0, 50) +
+    # scale_y_log10() +
+    labs(title = "% Increase of Total Confirmed COVID-19 Cases in Portugal",
+         subtitle = paste0("Source:", cv19_pt_pg, "\n",
+         "The blue line is a smooth loess fit with the estimated standard error in gray."),
+         y = "% Increase per Day",
+         caption = paste("As of", DataAsOf))
+  
+
+```
+```{r logcumall, fig.width=6.7}
+min_cases <- min(cv19_pt_tbl$Confirmed_Tot)
+max_cases <- max(cv19_pt_tbl$Confirmed_Tot)
+doubling <- NULL
+nextd <- min_cases
+while(nextd <= max_cases){
+  doubling <- c(doubling, nextd)
+  nextd <- 2 * nextd
+}
+first_date <- min(cv19_pt_tbl$Date)
+last_date <- max(cv19_pt_tbl$Date)
+
+RefLines <- tibble(Cases = doubling,
+                   Day = first_date,
+                   `2_Days` = first_date,
+                   `3_Days` = first_date)
+for(i in 2:(nrow(RefLines))){
+  RefLines$Day[i]     <- if_else(RefLines$Day[i - 1] + 1     <= last_date, RefLines$Day[i - 1] + 1, na_date)
+  RefLines$`2_Days`[i] <- if_else(RefLines$`2_Days`[i - 1] + 2 <= last_date, RefLines$`2_Days`[i - 1] + 2, na_date)
+  RefLines$`3_Days`[i] <- if_else(RefLines$`3_Days`[i - 1] + 3 <= last_date, RefLines$`3_Days`[i - 1] + 3, na_date)
+}
+
+RefLines_long <- RefLines %>% 
+  pivot_longer(-Cases, names_to = "Doubling_Every", values_to = "Date", values_drop_na = TRUE) %>% 
+  arrange(desc(Doubling_Every), Cases)
+
+cv19_pt_tbl %>% 
+  ggplot(aes(Date, Confirmed_Tot)) +
+    scale_y_log10() +
+    geom_line(aes(Date, Cases, color = Doubling_Every), data = RefLines_long) +
+    geom_point() +
+    geom_line() +
+    theme(legend.position="top") +
+    scale_color_discrete(limits = c("Day", "2_Days", "3_Days")) +
+    labs(title = "Total Confirmed COVID-19 Cases in Portugal (Log10)",
+         y = "Total #",
+         caption = paste("As of", DataAsOf))
+```
+
+
+## Active Regions
+Where these _active regions_ have at least `r min_cases_to_be_active` cases:
+
+```{r subset_regions}
+is_active <- function(x) x >= min_cases_to_be_active
+cv19_active <- cv19_pt_tbl %>% 
+  select(2:9) %>% 
+  summarise_all(sum, na.rm = TRUE) %>% 
+  select_if(is_active) %>% 
+  pivot_longer(everything(), names_to = "Region", values_to = "Total_Cases")
+cv19_active  
+```
+
+```{r plot_regions, fig.height=10, fig.width=8}
+cv19_pt_long <- cv19_pt_tbl %>% 
+  select(1:9) %>% 
+  pivot_longer(-Date, names_to = "Region", values_to = "New") %>% 
+  filter(Region %in% cv19_active$Region) %>% 
+  arrange(Region, Date) %>% 
+  group_by(Region) %>% 
+  mutate(Total = cumsum(New),
+         Pct_Increase = round(100 * New / lag(Total), 1))
+
+cv19_pt_long %>% 
+  filter(is.finite(Pct_Increase)) %>% 
+  ggplot(aes(Date, Pct_Increase, color = Region, fill = Region)) +
+    geom_point() +
+    geom_smooth() +
+    facet_grid(Region ~ ., scales = "free_y") +
+    labs(title = "% Increase in Confirmed COVID-19 Cases for Active Retions in Portugal",
+         subtitle = paste("Source:", cv19_pt_pg, "\nLine is a smooth loess fit with estimated standard error."),
+         y = "% Increase",
+         caption = paste("As of", DataAsOf))
+
+```
+```{r over, fig.width=8}
+ymin <- -10
+ymax <-  80
+cv19_pt_long %>% 
+  filter(is.finite(Pct_Increase)) %>% 
+  ggplot(aes(Date, Pct_Increase, color = Region)) +
+    geom_point() +
+    geom_smooth(fill = NA) +
+    ylim(ymin, ymax) +
+    labs(title = "% Increase in Confirmed COVID-19 Cases for Active Retions in Portugal",
+         subtitle = paste("Source:", cv19_pt_pg, 
+                          "\nLines are smooth loess fits. Standard errors are hidden. Thay are large!"),
+         y = paste0("% Increase (only showing from ", ymin, " to ", ymax, ")"),
+         caption = paste("As of", DataAsOf))
+    
+
+```
+
