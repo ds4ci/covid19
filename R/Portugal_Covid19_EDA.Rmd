@@ -98,7 +98,7 @@ cv19_pt_tbl %>%
   
 
 ```
-```{r logcumall, fig.width=6.7}
+```{r logcumall, fig.width=6.7, fig.height=6}
 min_cases <- min(cv19_pt_tbl$Confirmed_Tot)
 max_cases <- max(cv19_pt_tbl$Confirmed_Tot)
 doubling <- NULL
