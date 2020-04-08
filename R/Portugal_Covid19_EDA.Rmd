@@ -43,6 +43,7 @@ PI4DD <- tibble(days2double = double_days,
 
 ## Get Daily Stats Table
 Source: `r cv19_pt_pg`
+
 ```{r daily}
 cv19_pt <- xml2::read_html(cv19_pt_pg)
 
@@ -76,28 +77,7 @@ cv19_pt_tbl
 ```
 
 ## All of Portugal
-```{r PctInc, fig.width=6.7, fig.height=6}
-min_x <- min(cv19_pt_tbl$Date)
-cv19_pt_tbl %>% 
-  filter(is.finite(Confirmed_Pct_Inc)) %>% 
-  ggplot(aes(Date, Confirmed_Pct_Inc)) +
-    geom_hline(yintercept = PI4DD$PctInc, color = "red") +
-    annotate("text", x = min_x, y = PI4DD$PctInc, 
-             label = paste(PI4DD$days2double, "Days"), vjust = -0.31, color = "red", size = 2.8) +
-    annotate("text", x = min_x, y = Inf, label = "Total doubles every:", 
-             hjust = 0.2, vjust = 1, color = "red") +
-    geom_point() +
-    geom_smooth() +
-    ylim(0, 50) +
-    # scale_y_log10() +
-    labs(title = "% Increase of Total Confirmed COVID-19 Cases in Portugal",
-         subtitle = paste0("Source:", cv19_pt_pg, "\n",
-         "The blue line is a smooth loess fit with the estimated standard error in gray."),
-         y = "% Increase per Day",
-         caption = paste("As of", DataAsOf))
-  
 
-```
 ```{r logcumall, fig.width=6.7, fig.height=6}
 min_cases <- min(cv19_pt_tbl$Confirmed_Tot)
 max_cases <- max(cv19_pt_tbl$Confirmed_Tot)
@@ -134,6 +114,42 @@ cv19_pt_tbl %>%
     scale_color_discrete(limits = c("Day", "2_Days", "3_Days")) +
     labs(title = "Total Confirmed COVID-19 Cases in Portugal (Log10)",
          y = "Total #",
+         caption = paste("As of", DataAsOf))
+```
+
+
+```{r PctInc, fig.width=6.7, fig.height=6}
+min_x <- min(cv19_pt_tbl$Date)
+cv19_pt_tbl %>% 
+  filter(is.finite(Confirmed_Pct_Inc)) %>% 
+  ggplot(aes(Date, Confirmed_Pct_Inc)) +
+    geom_hline(yintercept = PI4DD$PctInc, color = "red") +
+    annotate("text", x = min_x, y = PI4DD$PctInc, 
+             label = paste(PI4DD$days2double, "Days"), vjust = -0.31, color = "red", size = 2.8) +
+    annotate("text", x = min_x, y = Inf, label = "Total doubles every:", 
+             hjust = 0.2, vjust = 1, color = "red") +
+    geom_point() +
+    geom_smooth() +
+    ylim(0, 50) +
+    # scale_y_log10() +
+    labs(title = "% Increase of Total Confirmed COVID-19 Cases in Portugal",
+         subtitle = paste0("Source:", cv19_pt_pg, "\n",
+         "The blue line is a smooth loess fit with the estimated standard error in gray."),
+         y = "% Increase per Day",
+         caption = paste("As of", DataAsOf))
+```
+```{r DailyNew, fig.width=6.7, fig.height=6}
+min_x <- min(cv19_pt_tbl$Date)
+cv19_pt_tbl %>% 
+  filter(is.finite(Confirmed_New)) %>% 
+  ggplot(aes(Date, Confirmed_New)) +
+    geom_point() +
+    geom_smooth() +
+    # scale_y_log10() +
+    labs(title = "Daily New Confirmed COVID-19 Cases in Portugal",
+         subtitle = paste0("Source:", cv19_pt_pg, "\n",
+         "The blue line is a smooth loess fit with the estimated standard error in gray."),
+         y = "# of New Cases per Day",
          caption = paste("As of", DataAsOf))
 ```
 
