@@ -54,23 +54,24 @@ cv19_pt_tbl0 <- cv19_pt_tbl0[[1]]
 cnames0 <- colnames(cv19_pt_tbl0)
 cnames <- cnames0
 cnames[1] <- "Date"
-cnames[3] <- "Lisbon_TV"
+cnames[2:9] <- c("North", "Lisbon_TV", "Center", "Alentejo", "Algarve", "Madeira", "Azores", "Foreigners")
 cnames[10:17] <- c("Confirmed_New", "Confirmed_Tot", 
-                   "Hospital Admt stable", "Hospital Admt ICU",
+                   "Hospital_Admt_Stable", "Hospital_Admt_ICU",
                    "Deaths_New", "Deaths_Total",
                    "Recoveries_New", "Recoveries_Total")
 colnames(cv19_pt_tbl0) <- cnames
 
 ## Fix 2020-03-16 Cases
-cv19_pt_tbl0[16, 10:12] <- c(86, 331, 1)
+# cv19_pt_tbl0[16, 10:12] <- c(86, 331, 1)
 ## Fix Date 0024-03-20
-cv19_pt_tbl0[24, 1] <- ("2020-03-24")
+# cv19_pt_tbl0[24, 1] <- ("2020-03-24")
 
 cv19_pt_tbl <- cv19_pt_tbl0 %>% 
   select(-`Refs.`) %>% 
   mutate(Date = as_date(Date, format = "%Y-%m-%d", tz = "GMT")) %>% 
   filter(!is.na(Date)) %>% 
-  mutate_at(2:14, as.integer) %>% 
+  mutate_at(2:17, str_replace, fixed(","), "") %>% 
+  mutate_at(2:17, as.integer) %>% 
   mutate(Confirmed_Pct_Inc = round(100 * Confirmed_New / coalesce(lag(Confirmed_Tot), 0L), 1))
 DataAsOf <- max(cv19_pt_tbl$Date)
 cv19_pt_tbl
@@ -130,7 +131,7 @@ cv19_pt_tbl %>%
              hjust = 0.2, vjust = 1, color = "red") +
     geom_point() +
     geom_smooth() +
-    ylim(0, 50) +
+    ylim(-10, 50) +
     # scale_y_log10() +
     labs(title = "% Increase of Total Confirmed COVID-19 Cases in Portugal",
          subtitle = paste0("Source:", cv19_pt_pg, "\n",
@@ -144,12 +145,26 @@ cv19_pt_tbl %>%
   filter(is.finite(Confirmed_New)) %>% 
   ggplot(aes(Date, Confirmed_New)) +
     geom_point() +
-    geom_smooth() +
+    geom_smooth(span = 0.5) +
     # scale_y_log10() +
     labs(title = "Daily New Confirmed COVID-19 Cases in Portugal",
          subtitle = paste0("Source:", cv19_pt_pg, "\n",
          "The blue line is a smooth loess fit with the estimated standard error in gray."),
          y = "# of New Cases per Day",
+         caption = paste("As of", DataAsOf))
+```
+```{r DailyNewDeaths, fig.width=6.7, fig.height=6}
+min_x <- min(cv19_pt_tbl$Date)
+cv19_pt_tbl %>% 
+  filter(is.finite(Deaths_New)) %>% 
+  ggplot(aes(Date, Deaths_New)) +
+    geom_point() +
+    geom_smooth(span = 0.5) +
+    # scale_y_log10() +
+    labs(title = "Daily New COVID-19 Deaths in Portugal",
+         subtitle = paste0("Source:", cv19_pt_pg, "\n",
+         "The blue line is a smooth loess fit with the estimated standard error in gray."),
+         y = "# of New Deaths per Day",
          caption = paste("As of", DataAsOf))
 ```
 
@@ -191,7 +206,7 @@ cv19_pt_long %>%
 ```
 ```{r over, fig.width=8}
 ymin <- -10
-ymax <-  80
+ymax <-  50
 cv19_pt_long %>% 
   filter(is.finite(Pct_Increase)) %>% 
   ggplot(aes(Date, Pct_Increase, color = Region)) +

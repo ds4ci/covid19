@@ -37,3 +37,23 @@ cases_dataset <- dgs_cases[["features"]][["attributes"]]
 geo_dataset <- dgs_geo[["features"]][["attributes"]]
 ```
 
+```{r}
+geo_dataset <- dgs_geo[["features"]][["attributes"]] 
+
+geo_colnames <- c("id_objeto", "id_global", "data_relatorio", "distrito", "casos_confirmados", "n_obitos", "recuperados", "id_global_pai", "creation_date", "creator", "edit_date", "editor", "untimo_registo") 
+
+names(geo_dataset) <- geo_colnames 
+
+geo_dataset$data_relatorio <- as.Date(as.POSIXct(geo_dataset$data_relatorio / 1000, origin = "1960-01-01"))
+
+geo_dataset$creation_date <- as.Date(as.POSIXct(geo_dataset$creation_date / 1000, origin = "1960-01-01"))
+
+geo_dataset$edit_date <- as.Date(as.POSIXct(geo_dataset$edit_date / 1000, origin = "1960-01-01")) 
+
+geo_norte <- geo_dataset %>% filter(distrito == "+041.45756_-007.67865") %>% distinct_at(vars(data_relatorio), .keep_all = TRUE) %>% arrange(data_relatorio) %>% mutate(id_objeto = seq(13, n()+13-1)) 
+
+cases_dataset <- dgs_cases[["features"]][["attributes"]]
+
+colnames <- c( "id_objeto", "id_global", "data_relatorio", "casos_confirmados", "n_obitos")
+```
+
