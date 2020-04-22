@@ -28,7 +28,7 @@ library(xml2)
 ```{r preset}
 cv19_pt_pg <- "https://en.wikipedia.org/wiki/2020_coronavirus_pandemic_in_Portugal"
 cv19_pt_xpath <- '//*[@id="mw-content-text"]/div/table[4]'
-min_cases_to_be_active <- 30
+min_cases_to_be_active <- 100
 na_date <- ymd("2000-01-31") + months(1)
 
 # % Increase = f(days2double)
@@ -79,7 +79,7 @@ cv19_pt_tbl
 
 ## All of Portugal
 
-```{r logcumall, fig.width=6.7, fig.height=6}
+```{r logcumall, fig.width=8, fig.height=6}
 min_cases <- min(cv19_pt_tbl$Confirmed_Tot)
 max_cases <- max(cv19_pt_tbl$Confirmed_Tot)
 doubling <- NULL
@@ -119,7 +119,7 @@ cv19_pt_tbl %>%
 ```
 
 
-```{r PctInc, fig.width=6.7, fig.height=6}
+```{r PctInc, fig.width=8, fig.height=6}
 min_x <- min(cv19_pt_tbl$Date)
 cv19_pt_tbl %>% 
   filter(is.finite(Confirmed_Pct_Inc)) %>% 
@@ -139,7 +139,7 @@ cv19_pt_tbl %>%
          y = "% Increase per Day",
          caption = paste("As of", DataAsOf))
 ```
-```{r DailyNew, fig.width=6.7, fig.height=6}
+```{r DailyNew, fig.width=8, fig.height=6}
 min_x <- min(cv19_pt_tbl$Date)
 cv19_pt_tbl %>% 
   filter(is.finite(Confirmed_New)) %>% 
@@ -153,7 +153,7 @@ cv19_pt_tbl %>%
          y = "# of New Cases per Day",
          caption = paste("As of", DataAsOf))
 ```
-```{r DailyNewDeaths, fig.width=6.7, fig.height=6}
+```{r DailyNewDeaths, fig.width=8, fig.height=6}
 min_x <- min(cv19_pt_tbl$Date)
 cv19_pt_tbl %>% 
   filter(is.finite(Deaths_New)) %>% 
@@ -167,7 +167,23 @@ cv19_pt_tbl %>%
          y = "# of New Deaths per Day",
          caption = paste("As of", DataAsOf))
 ```
-
+```{r TotalDeathsRecoveries, fig.width=8, fig.height=6}
+min_x <- min(cv19_pt_tbl$Date)
+cv19_pt_tbl %>% 
+  select(Date, Deaths_Total, Recoveries_Total) %>% 
+  pivot_longer(-Date, names_to = "Metric") %>% 
+  # filter(is.finite(Deaths_New)) %>% 
+  ggplot(aes(Date, value, color = Metric)) +
+    geom_point() +
+    geom_smooth(span = 0.5) +
+    scale_y_log10() +
+    theme(legend.position="top") +
+    labs(title = "Total COVID-19 Deaths & Recoveries in Portugal",
+         subtitle = paste0("Source:", cv19_pt_pg, "\n",
+         "The lines are smooth loess fits with the estimated standard error in gray."),
+         y = "Total #",
+         caption = paste("As of", DataAsOf))
+```
 
 ## Active Regions
 Where these _active regions_ have at least `r min_cases_to_be_active` cases:
@@ -182,7 +198,7 @@ cv19_active <- cv19_pt_tbl %>%
 cv19_active  
 ```
 
-```{r plot_regions, fig.height=10, fig.width=8}
+```{r plot_regions, fig.height=12, fig.width=10}
 cv19_pt_long <- cv19_pt_tbl %>% 
   select(1:9) %>% 
   pivot_longer(-Date, names_to = "Region", values_to = "New") %>% 
@@ -194,9 +210,10 @@ cv19_pt_long <- cv19_pt_tbl %>%
 
 cv19_pt_long %>% 
   filter(is.finite(Pct_Increase)) %>% 
-  ggplot(aes(Date, Pct_Increase, color = Region, fill = Region)) +
+  ggplot(aes(Date, Pct_Increase, color = Region, fill = Region, shape = Region)) +
     geom_point() +
     geom_smooth() +
+    theme(legend.position="none") +
     facet_grid(Region ~ ., scales = "free_y") +
     labs(title = "% Increase in Confirmed COVID-19 Cases for Active Retions in Portugal",
          subtitle = paste("Source:", cv19_pt_pg, "\nLine is a smooth loess fit with estimated standard error."),
@@ -204,15 +221,16 @@ cv19_pt_long %>%
          caption = paste("As of", DataAsOf))
 
 ```
-```{r over, fig.width=8}
-ymin <- -10
-ymax <-  50
+```{r over, fig.width=10}
+ymin <- -5
+ymax <-  35
 cv19_pt_long %>% 
   filter(is.finite(Pct_Increase)) %>% 
-  ggplot(aes(Date, Pct_Increase, color = Region)) +
+  ggplot(aes(Date, Pct_Increase, color = Region, shape = Region)) +
     geom_point() +
     geom_smooth(fill = NA) +
     ylim(ymin, ymax) +
+    theme(legend.position="top") +
     labs(title = "% Increase in Confirmed COVID-19 Cases for Active Retions in Portugal",
          subtitle = paste("Source:", cv19_pt_pg, 
                           "\nLines are smooth loess fits. Standard errors are hidden. Thay are large!"),
